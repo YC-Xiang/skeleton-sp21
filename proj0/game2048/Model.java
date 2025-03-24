@@ -5,7 +5,7 @@ import java.util.Observable;
 
 
 /** The state of a game of 2048.
- *  @author TODO: YOUR NAME HERE
+ *  @author yucheng_xiang
  */
 public class Model extends Observable {
     /** Current contents of the board. */
@@ -107,17 +107,83 @@ public class Model extends Observable {
      *    and the trailing tile does not.
      * */
     public boolean tilt(Side side) {
-        boolean changed;
-        changed = false;
+        boolean changed = false;
 
-        // TODO: Modify this.board (and perhaps this.score) to account
-        // for the tilt to the Side SIDE. If the board changed, set the
-        // changed local variable to true.
+        // 设置视角 - 这样我们只需要实现向上移动的逻辑
+        board.setViewingPerspective(side);
+
+        // 处理每一列
+        for (int col = 0; col < board.size(); col++) {
+            // 从上到下处理每一列，将所有方块上移
+            changed |= tiltColumn(col);
+        }
+
+        // 恢复原始视角
+        board.setViewingPerspective(Side.NORTH);
 
         checkGameOver();
         if (changed) {
             setChanged();
         }
+        return changed;
+    }
+
+    /**
+     * 处理单个列的上移操作
+     * @param col 要处理的列
+     * @return 如果列发生了改变，返回true
+     */
+    private boolean tiltColumn(int col) {
+        boolean changed = false;
+        boolean[] merged = new boolean[board.size()]; // 跟踪方块是否已合并
+
+        // 从倒数第二行开始向上处理（最顶行不需要移动）
+        for (int row = board.size() - 2; row >= 0; row--) {
+            // 跳过空格子
+            if (board.tile(col, row) == null) {
+                continue;
+            }
+
+            // 获取当前方块
+            Tile tile = board.tile(col, row);
+            int value = tile.value();
+
+            // 找到方块应该移动到的位置
+            int targetRow = row;
+
+            // 尝试往上移动
+            for (int r = row + 1; r < board.size(); r++) {
+                if (board.tile(col, r) == null) {
+                    // 空格子，可以移动
+                    targetRow = r;
+                } else if (!merged[r] && board.tile(col, r).value() == value) {
+                    // 找到相同值的方块且未被合并过，可以合并
+                    targetRow = r;
+                    merged[r] = true; // 标记为已合并，防止连续合并
+                    break;
+                } else {
+                    // 遇到不能合并的非空格子，停止向上移动
+                    break;
+                }
+            }
+
+            // 如果找到新位置，移动方块
+            if (targetRow != row) {
+                boolean mergeHappened = (board.tile(col, targetRow) != null);
+
+                // 移动方块，返回是否成功移动
+                boolean moveSucceeded = board.move(col, targetRow, tile);
+
+                // 如果移动成功并且发生了合并，更新分数
+                if (moveSucceeded && mergeHappened) {
+                    // 合并后的方块值是原始值的两倍
+                    score += value * 2;
+                }
+
+                changed = true;
+            }
+        }
+
         return changed;
     }
 
@@ -137,7 +203,13 @@ public class Model extends Observable {
      *  Empty spaces are stored as null.
      * */
     public static boolean emptySpaceExists(Board b) {
-        // TODO: Fill in this function.
+        for (int i = 0; i < b.size(); i++) {
+            for (int j = 0; j < b.size(); j++) {
+                if (b.tile(i, j) == null) {
+                    return true;
+                }
+            }
+        }
         return false;
     }
 
@@ -147,7 +219,18 @@ public class Model extends Observable {
      * given a Tile object t, we get its value with t.value().
      */
     public static boolean maxTileExists(Board b) {
-        // TODO: Fill in this function.
+        for (int i = 0; i < b.size(); i++) {
+            for (int j = 0; j < b.size(); j++) {
+                if (b.tile(i, j) == null){
+                    continue;
+                }
+
+                if (b.tile(i, j).value() == MAX_PIECE) {
+                    return true;
+                }
+            }
+
+        }
         return false;
     }
 
@@ -158,7 +241,27 @@ public class Model extends Observable {
      * 2. There are two adjacent tiles with the same value.
      */
     public static boolean atLeastOneMoveExists(Board b) {
-        // TODO: Fill in this function.
+        // First check if there are any empty spaces
+        if (emptySpaceExists(b)) {
+            return true;
+        }
+
+        // Check all adjacent tiles for possible merges
+        for (int i = 0; i < b.size(); i++) {
+            for (int j = 0; j < b.size(); j++) {
+                int currentValue = b.tile(i, j).value();
+
+                // Check right neighbor
+                if (j < b.size() - 1 && currentValue == b.tile(i, j + 1).value()) {
+                    return true;
+                }
+                // Check bottom neighbor
+                if (i > 0 && currentValue == b.tile(i - 1, j).value()) {
+                    return true;
+                }
+            }
+        }
+
         return false;
     }
 
@@ -196,7 +299,7 @@ public class Model extends Observable {
     }
 
     @Override
-    /** Returns hash code of Model’s string. */
+    /** Returns hash code of Model's string. */
     public int hashCode() {
         return toString().hashCode();
     }
